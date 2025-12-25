@@ -1,0 +1,35 @@
+# PG-RNN Requirements
+# PatientGraph Recurrent Neural Network Tools
+
+# AllegroGraph Python Client
+agraph-python>=103.0.0
+
+# Data Processing
+numpy>=1.21.0
+pandas>=1.3.0
+pyarrow>=8.0.0  # For parquet caching
+
+# Deep Learning
+torch>=2.0.0
+
+# Machine Learning Utilities
+scikit-learn>=1.0.0
+tqdm>=4.60.0
+
+# Configuration
+pyyaml>=6.0
+
+# Visualization
+matplotlib>=3.5.0
+seaborn>=0.11.0
+
+# Jupyter Notebooks
+jupyter>=1.0.0
+ipykernel>=6.0.0
+
+# Logging and Monitoring
+tensorboard>=2.10.0
+
+# Development
+pytest>=7.0.0
+black>=22.0.0

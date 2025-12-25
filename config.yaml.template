@@ -1,0 +1,45 @@
+# PG-RNN Configuration Template
+# Copy to config.yaml and fill in your values
+
+agraph:
+  host: localhost
+  port: 10035
+  repository: PatientGraph
+  user: YOUR_USERNAME
+  password: YOUR_PASSWORD
+  catalog: null
+
+# Namespace prefixes
+namespaces:
+  ns28: "http://patientgraph.ai/"
+  skos: "http://www.w3.org/2004/02/skos/core#"
+  rdfs: "http://www.w3.org/2000/01/rdf-schema#"
+  rdf: "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+  xsd: "http://www.w3.org/2001/XMLSchema#"
+  owl: "http://www.w3.org/2002/07/owl#"
+  dc: "http://purl.org/dc/elements/1.1/"
+  foaf: "http://xmlns.com/foaf/0.1/"
+
+# Sequence processing parameters
+sequence:
+  max_length: 500
+  min_frequency: 2
+  pad_token: "<PAD>"
+  unk_token: "<UNK>"
+
+# Model hyperparameters
+model:
+  type: "lstm"  # lstm, gru, bilstm, attention
+  embedding_dim: 128
+  hidden_size: 256
+  num_layers: 2
+  dropout: 0.3
+  bidirectional: false
+
+# Training parameters
+training:
+  batch_size: 32
+  learning_rate: 0.001
+  epochs: 30
+  early_stopping_patience: 5
+  weight_decay: 0.0001

@@ -1,0 +1,41 @@
+The goal of this Claude Code project is to create Recurrent Neural
+Network tools for PatientGraph. 
+
+PatientGraph is a knowledge graph, using the graph database
+AllegroGraph that combines patient data from the Synthea Project, FDA
+clinical trials, some Pubmed literature about Covid, and the VAERs
+database. Everything in this knowledge graph is tied together by UMLS
+taxonomies.
+
+In another project we (claude and I) created a very sophisticated
+system to create queries and do analytics against AllegroGraph. The
+full project is in the softlink in this directory called
+GraphTalker. Please study the code in that directory to understand how
+this software. You might want to start in this directory with
+./graphtalker/CLAUDE.md and ./graphtalker/docs/AGENT-GUIDE.md
+
+Ask the user to start graphtalker, although you can do it yourself by
+starting ~/dropboxlisp/claude-mcp-in-lisp/start-server.sh 8080 (or
+whatever open port you chose)
+
+Once that is up, please use graphtalker to ask about the structure of
+patientgraph. Please execute the following instructions via the eval
+server:
+(initialize-agraph-connection "http" "localhost" 10035 ""
+"PatientGraph" "test" "xyzzy")
+
+(test-agraph-connection)
+
+(claude-query "Tell me the structure of the database in great detail")
+
+Once you have done that I want you to read the local file "README.md"
+That file is the result of asking claude how we could build a system
+for recurrent neural networks for patientgraph and it came up with
+this suggestion. Please le me know if you also think this is a good
+plan. 
+
+
+
+
+
+

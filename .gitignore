@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Environment
+.env
+.venv
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data and cache
+data/
+cache/
+*.pkl
+*.parquet
+
+# External dependencies (too large)
+agraph-python-master/
+graphtalker/
+
+# Notebooks (reference only, not core project)
+*.ipynb
+
+# Credentials
+config.yaml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Model checkpoints (can be large)
+models/*.pt
