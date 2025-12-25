@@ -34,6 +34,9 @@ cache/
 agraph-python-master/
 graphtalker/
 
+# Archive
+archive/
+
 # Notebooks (reference only, not core project)
 *.ipynb
 
