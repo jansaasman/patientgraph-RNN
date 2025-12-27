@@ -14,7 +14,8 @@ The system uses patient event sequences (conditions, medications, procedures, ob
 1. [Creating a Disease Configuration](#1-creating-a-disease-configuration)
 2. [Training a Model](#2-training-a-model)
 3. [Making Predictions](#3-making-predictions)
-4. [Understanding Results](#4-understanding-results)
+4. [Running a Demo](#4-running-a-demo)
+5. [Understanding Results](#5-understanding-results)
 
 ---
 
@@ -269,7 +270,82 @@ print(f"Risk in 1998: {result['probability']:.1%}")
 
 ---
 
-## 4. Understanding Results
+## 4. Running a Demo
+
+The `demo_predictions.py` script selects random cases and controls, runs predictions, and displays results in a formatted table.
+
+### Basic Usage
+
+```bash
+# Run demo with default 10 patients per group
+python demo_predictions.py configs/heart_failure.yaml
+
+# Specify number of patients
+python demo_predictions.py configs/atrial_fibrillation.yaml --count 20
+
+# Save results to CSV
+python demo_predictions.py configs/heart_failure.yaml --output results.csv
+
+# CSV only (skip table output)
+python demo_predictions.py configs/heart_failure.yaml --output results.csv --no-table
+```
+
+### Command Options
+
+| Option | Description |
+|--------|-------------|
+| `config` | Path to YAML config file (required) |
+| `--count N` | Number of patients per group (default: 10) |
+| `--output FILE` | Save results to CSV file |
+| `--no-table` | Skip markdown table output |
+
+### How It Works
+
+1. **Cases**: Selects random patients with the disease
+   - Prediction date = 6 months before diagnosis
+   - Shows what the model predicted before they were diagnosed
+
+2. **Controls**: Selects random at-risk patients without the disease
+   - Prediction date = their last event date
+   - Shows current risk for patients who haven't developed the disease
+
+### Example Output
+
+```
+## Atrial Fibrillation Prediction Demo
+
+### Cases (patients with Atrial Fibrillation)
+Prediction made 6 months before diagnosis
+
+| Patient | Pred. Date | Risk % | Outcome | Top Predictors |
+|---------|------------|--------|---------|----------------|
+| Ernesto Koelpin | 2015-12-29 | 99.5% | Diagnosed 2016-06-28 | aspirin 81 MG... |
+| Ben Reilly | 2009-07-31 | 99.4% | Diagnosed 2010-01-29 | aspirin 81 MG... |
+| Perry Effertz | 2005-09-21 | 97.7% | Diagnosed 2006-03-22 | simvastatin... |
+
+### Controls (at-risk, no Atrial Fibrillation)
+Prediction made at last event date
+
+| Patient | Pred. Date | Risk % | Outcome | Top Predictors |
+|---------|------------|--------|---------|----------------|
+| Claudio Rodríquez | 2016-06-11 | 95.8% | None | Anemia... |
+| Peter Deckow | 2012-05-16 | 57.0% | None | Chronic sinusitis |
+| Mario Figueroa | 2009-06-15 | 2.1% | None | lisinopril... |
+
+### Summary
+Cases: mean=72.3%, min=10.3%, max=99.5%
+Controls: mean=30.1%, min=2.1%, max=95.8%
+```
+
+### Interpreting Demo Results
+
+- **Good model**: Cases have higher mean risk than controls
+- **High-risk controls**: May be future cases worth monitoring
+- **Low-risk cases**: Model may have missed some patterns, or disease onset was sudden
+
+---
+
+## 5. Understanding Results
 
 ### Metrics
 
@@ -340,6 +416,12 @@ python predict_patient.py "patient-id" --model models/heart_failure_model.pt --d
 
 # Quick prediction without attention analysis
 python predict_patient.py "patient-id" --model models/heart_failure_model.pt --no-attention
+
+# Run demo on random cases and controls
+python demo_predictions.py configs/heart_failure.yaml
+
+# Demo with more patients and CSV output
+python demo_predictions.py configs/atrial_fibrillation.yaml --count 20 --output results.csv
 ```
 
 ## Troubleshooting
