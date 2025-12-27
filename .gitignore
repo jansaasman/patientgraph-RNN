@@ -49,3 +49,14 @@ Thumbs.db
 
 # Model checkpoints (can be large)
 models/*.pt
+
+# Trained models (generated)
+models/
+
+# External dependencies
+agraph-python-master/
+graphtalker/
+
+# Emacs backup files
+\#*\#
+.\#*
