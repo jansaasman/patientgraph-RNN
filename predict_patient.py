@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 """
-Predict nephropathy risk for a single patient.
+Predict disease risk for a single patient.
 
 Usage:
-    python predict_patient.py <patient_id>
-    python predict_patient.py <patient_id> --model nephropathy_t047_model.pt
-    python predict_patient.py --list  # List available diabetic patients
+    python predict_patient.py <patient_id> --model <model_path>
+    python predict_patient.py "Aaron Flatley" --model models/heart_failure_model.pt
+    python predict_patient.py "John Smith" --model models/nephropathy_model.pt
 
 Example:
-    python predict_patient.py "patient-123"
+    python predict_patient.py "patient-123" --model models/heart_failure_model.pt
 """
 
 import sys
@@ -28,30 +28,9 @@ from src.models import AttentionPatientRNN
 from src.config import get_config
 
 
-def get_patient_events(client: PatientGraphClient, patient_id: str, t047_only: bool = False) -> pd.DataFrame:
-    """Get all events for a single patient."""
-
-    if t047_only:
-        # T047 conditions only
-        condition_block = f"""
-            ?patient ns28:patientCondition ?event .
-            ?event ns28:startDateTime ?eventDateTime .
-            ?event ns28:code ?codeUri .
-            ?codeUri skos:notation ?eventCode .
-            ?codeUri a <https://uts.nlm.nih.gov/uts/umls/semantic-network/T047> .
-            BIND("CONDITION" AS ?eventType)
-        """
-    else:
-        # All conditions
-        condition_block = """
-            ?patient ns28:patientCondition ?event .
-            ?event ns28:startDateTime ?eventDateTime .
-            OPTIONAL {
-                ?event ns28:code ?codeUri .
-                ?codeUri skos:notation ?eventCode .
-            }
-            BIND("CONDITION" AS ?eventType)
-        """
+def get_patient_events_t047(client: PatientGraphClient, patient_id: str) -> pd.DataFrame:
+    """Get all events for a single patient, filtering conditions to T047 only."""
+    T047_URI = "https://uts.nlm.nih.gov/uts/umls/semantic-network/T047"
 
     query = f"""{PREFIXES}
     SELECT DISTINCT
@@ -66,8 +45,13 @@ def get_patient_events(client: PatientGraphClient, patient_id: str, t047_only: b
         FILTER(?patientId = "{patient_id}")
 
         {{
-            {condition_block}
+            ?patient ns28:patientCondition ?event .
+            ?event ns28:startDateTime ?eventDateTime ;
+                   ns28:code ?codeUri .
+            ?codeUri skos:notation ?eventCode ;
+                     a <{T047_URI}> .
             OPTIONAL {{ ?codeUri skos:prefLabel ?eventLabel }}
+            BIND("CONDITION" AS ?eventType)
         }}
         UNION
         {{
@@ -106,29 +90,6 @@ def get_patient_events(client: PatientGraphClient, patient_id: str, t047_only: b
     return client.query(query)
 
 
-def get_diabetic_patients(client: PatientGraphClient, limit: int = 20) -> pd.DataFrame:
-    """Get list of diabetic patients for testing."""
-    query = f"""{PREFIXES}
-    SELECT DISTINCT ?patientId (SAMPLE(?label) as ?diabetesType)
-    WHERE {{
-        ?patient a ns28:Patient ;
-                 rdfs:label ?patientId ;
-                 ns28:patientCondition ?condition .
-
-        ?condition ns28:code ?code .
-        ?code skos:prefLabel ?label .
-
-        FILTER(
-            CONTAINS(LCASE(?label), "diabetes") ||
-            CONTAINS(LCASE(?label), "diabetic")
-        )
-    }}
-    GROUP BY ?patientId
-    LIMIT {limit}
-    """
-    return client.query(query)
-
-
 def lookup_codes(client: PatientGraphClient, codes: list) -> dict:
     """Look up code labels."""
     if not codes:
@@ -147,47 +108,70 @@ def lookup_codes(client: PatientGraphClient, codes: list) -> dict:
 
 def predict_single_patient(
     patient_id: str,
-    model_path: str = "models/nephropathy_t047_model.pt",
+    model_path: str,
     show_attention: bool = True,
     top_k: int = 10
 ):
     """
-    Predict nephropathy risk for a single patient.
+    Predict disease risk for a single patient.
 
     Returns:
         dict with prediction probability, risk level, and top attention events
     """
     model_path = Path(model_path)
     if not model_path.exists():
-        model_path = Path("models") / model_path.name
-
-    # Determine if T047 model
-    t047_only = "t047" in model_path.name.lower()
+        print(f"ERROR: Model file not found: {model_path}")
+        return None
 
     print(f"Loading model: {model_path}")
-    print(f"Condition filter: {'T047 only' if t047_only else 'All conditions'}")
 
     # Load model
     checkpoint = torch.load(model_path, map_location='cpu', weights_only=False)
     vocab = checkpoint['vocab']
     config = checkpoint['config']
 
+    # Get disease info from checkpoint if available
+    disease_config = checkpoint.get('disease_config', {})
+    disease_name = disease_config.get('display_name', 'Disease')
+
+    print(f"Disease: {disease_name}")
+
+    # Determine model architecture from checkpoint or config
+    # Check if it's a smaller model (for small datasets like AF)
+    model_state = checkpoint['model_state_dict']
+
+    # Infer hidden size from the model state
+    for key in model_state.keys():
+        if 'lstm.weight_hh_l0' in key:
+            hidden_size = model_state[key].shape[1]
+            break
+    else:
+        hidden_size = config.model.hidden_size
+
+    # Infer number of layers
+    num_layers = sum(1 for k in model_state.keys() if 'lstm.weight_hh_l' in k and 'reverse' not in k)
+    if num_layers == 0:
+        num_layers = config.model.num_layers
+
+    # Infer embedding dim
+    embedding_dim = model_state['embedding.weight'].shape[1]
+
     # Recreate model architecture
     model = AttentionPatientRNN(
         vocab_size=len(vocab),
-        embedding_dim=config.model.embedding_dim,
-        hidden_size=config.model.hidden_size,
-        num_layers=config.model.num_layers,
-        dropout=config.model.dropout
+        embedding_dim=embedding_dim,
+        hidden_size=hidden_size,
+        num_layers=num_layers,
+        dropout=0.0  # No dropout during inference
     )
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
 
     print(f"\nFetching events for patient: {patient_id}")
 
-    # Get patient events
+    # Get patient events (T047 filtered, matching training)
     with PatientGraphClient() as client:
-        events_df = get_patient_events(client, patient_id, t047_only=t047_only)
+        events_df = get_patient_events_t047(client, patient_id)
 
     if len(events_df) == 0:
         print(f"ERROR: No events found for patient {patient_id}")
@@ -251,7 +235,7 @@ def predict_single_patient(
     print("PREDICTION RESULT")
     print("=" * 60)
     print(f"Patient ID: {patient_id}")
-    print(f"Nephropathy Risk Probability: {probability:.1%}")
+    print(f"{disease_name} Risk Probability: {probability:.1%}")
     print(f"Risk Level: {risk_level}")
     print("=" * 60)
 
@@ -286,10 +270,11 @@ def predict_single_patient(
                 label = f"(code: {info['code']})"
 
             date_str = info['date'].strftime('%Y-%m-%d')
-            print(f"  {rank:2d}. [{attn_score:.3f}] {info['type']:12s} | {date_str} | {label[:40]}")
+            print(f"  {rank:2d}. [{attn_score:.3f}] {info['type']:12s} | {date_str} | {label[:50]}")
 
     return {
         'patient_id': patient_id,
+        'disease': disease_name,
         'probability': probability,
         'risk_level': risk_level,
         'n_events': len(events_df),
@@ -298,29 +283,20 @@ def predict_single_patient(
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Predict nephropathy risk for a patient')
+    parser = argparse.ArgumentParser(description='Predict disease risk for a patient')
     parser.add_argument('patient_id', nargs='?', help='Patient ID to predict')
-    parser.add_argument('--model', default='nephropathy_t047_model.pt', help='Model file to use')
-    parser.add_argument('--list', action='store_true', help='List available diabetic patients')
+    parser.add_argument('--model', required=False, default='models/heart_failure_model.pt',
+                        help='Path to trained model file')
     parser.add_argument('--top-k', type=int, default=10, help='Number of top attention events to show')
     parser.add_argument('--no-attention', action='store_true', help='Skip attention analysis')
 
     args = parser.parse_args()
 
-    if args.list:
-        print("Fetching diabetic patients...")
-        with PatientGraphClient() as client:
-            patients = get_diabetic_patients(client, limit=30)
-        print(f"\nFound {len(patients)} diabetic patients:\n")
-        for _, row in patients.iterrows():
-            print(f"  {row['patientId']}: {row['diabetesType']}")
-        return
-
     if not args.patient_id:
         parser.print_help()
         print("\n\nExample usage:")
-        print("  python predict_patient.py --list")
-        print("  python predict_patient.py 'patient-abc123'")
+        print("  python predict_patient.py 'Aaron Flatley' --model models/heart_failure_model.pt")
+        print("  python predict_patient.py 'John Smith' --model models/nephropathy_model.pt")
         return
 
     result = predict_single_patient(
@@ -331,7 +307,7 @@ def main():
     )
 
     if result:
-        print(f"\n✓ Prediction complete")
+        print(f"\nPrediction complete")
 
 
 if __name__ == "__main__":
