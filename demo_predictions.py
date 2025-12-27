@@ -262,16 +262,17 @@ def run_demo(config_path: str, count: int = 10, output_csv: str = None,
 
     model_state = checkpoint['model_state_dict']
 
-    # Infer model architecture
+    # Infer model architecture (check both 'rnn' and 'lstm' key names)
+    hidden_size = None
     for key in model_state.keys():
-        if 'lstm.weight_hh_l0' in key:
+        if 'rnn.weight_hh_l0' in key or 'lstm.weight_hh_l0' in key:
             hidden_size = model_state[key].shape[1]
             break
-    else:
+    if hidden_size is None:
         hidden_size = app_config.model.hidden_size
 
     num_layers = sum(1 for k in model_state.keys()
-                     if 'lstm.weight_hh_l' in k and 'reverse' not in k)
+                     if ('rnn.weight_hh_l' in k or 'lstm.weight_hh_l' in k) and 'reverse' not in k)
     if num_layers == 0:
         num_layers = app_config.model.num_layers
 
