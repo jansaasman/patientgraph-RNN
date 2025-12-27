@@ -151,85 +151,121 @@ After training, you'll find in `models/`:
 
 ## 3. Making Predictions
 
-### Using predict_patient.py
+### Basic Usage
 
 ```bash
-# Predict disease risk for a specific patient
-python predict_patient.py <patient_id> <model_path>
-
-# Examples:
-python predict_patient.py "patient123" models/heart_failure_model.pt
-python predict_patient.py "abc-def-ghi" models/nephropathy_model.pt
+python predict_patient.py <patient_id> --model <model_path>
 ```
 
-### Output
+The prediction system automatically:
+1. **Checks if patient is already diagnosed** → returns 100%
+2. **If not diagnosed** → runs the model to predict risk
 
-```
-Patient: patient123
-Risk Score: 0.7823 (78.23%)
-Prediction: HIGH RISK for Heart Failure
+### Command Options
 
-Top Contributing Events:
-  0.156  MEDICATION_314076 (lisinopril 10 MG)
-  0.134  CONDITION_271737000 (hypertension)
-  0.098  MEDICATION_310798 (hydrochlorothiazide 25 MG)
-  ...
+| Option | Description |
+|--------|-------------|
+| `--model PATH` | Path to trained model file |
+| `--date YYYY-MM-DD` | Point-in-time prediction (use events up to this date) |
+| `--top-k N` | Number of top attention events to show (default: 10) |
+| `--no-attention` | Skip attention analysis for faster output |
+
+### Example 1: Patient Already Diagnosed
+
+```bash
+python predict_patient.py "Aaron Flatley" --model models/heart_failure_model.pt
 ```
+
+Output:
+```
+============================================================
+PREDICTION RESULT
+============================================================
+Patient ID: Aaron Flatley
+Heart Failure Status: DIAGNOSED
+Diagnosis Date: 1999-04-30
+Condition: Chronic congestive heart failure
+Probability: 100.0%
+============================================================
+```
+
+### Example 2: At-Risk Patient (Not Diagnosed)
+
+```bash
+python predict_patient.py "Abe Brown" --model models/heart_failure_model.pt
+```
+
+Output:
+```
+============================================================
+PREDICTION RESULT
+============================================================
+Patient ID: Abe Brown
+Heart Failure Risk Probability: 95.0%
+Risk Level: HIGH
+============================================================
+
+Top 10 events by attention (what the model focused on):
+------------------------------------------------------------
+   1. [0.041] OBSERVATION  | 2008-09-22 | Body Weight
+   2. [0.041] OBSERVATION  | 2008-09-22 | Pain severity
+   3. [0.039] OBSERVATION  | 2008-09-22 | Total Cholesterol
+   ...
+```
+
+### Example 3: Point-in-Time Prediction
+
+Ask "what was the risk on a specific date?" - useful for validating the model on known cases.
+
+```bash
+# What was Aaron's risk in 1998 (before his 1999 diagnosis)?
+python predict_patient.py "Aaron Flatley" --model models/heart_failure_model.pt --date 1998-01-01
+```
+
+Output:
+```
+============================================================
+PREDICTION RESULT (as of 1998-01-01)
+============================================================
+Patient ID: Aaron Flatley
+Heart Failure Risk Probability: 99.9%
+Risk Level: HIGH
+Note: Patient was later diagnosed on 1999-04-30
+============================================================
+```
+
+The model correctly predicted 99.9% risk ~16 months before actual diagnosis!
+
+### Prediction Logic Summary
+
+| Scenario | What Happens |
+|----------|--------------|
+| Patient has disease | Returns 100% (DIAGNOSED) |
+| Patient doesn't have disease | Runs model prediction |
+| `--date` before diagnosis | Uses only events up to that date, runs model |
+| `--date` after diagnosis | Returns 100% (already diagnosed by that date) |
 
 ### Programmatic Usage
 
 ```python
-import torch
-from src.agraph_client import PatientGraphClient
-from src.generic_trainer import DiseasePredictor
+from predict_patient import predict_single_patient
+from datetime import datetime
 
-# Load trained model
-checkpoint = torch.load('models/heart_failure_model.pt')
-vocab = checkpoint['vocab']
-model_state = checkpoint['model_state_dict']
-
-# Create model and load weights
-from src.models import AttentionPatientRNN
-model = AttentionPatientRNN(
-    vocab_size=len(vocab),
-    embedding_dim=128,
-    hidden_size=256,
-    num_layers=2
+# Current prediction
+result = predict_single_patient(
+    patient_id="Abe Brown",
+    model_path="models/heart_failure_model.pt"
 )
-model.load_state_dict(model_state)
-model.eval()
+print(f"Risk: {result['probability']:.1%}")
 
-# Get patient events and predict
-# ... (see predict_patient.py for full example)
+# Point-in-time prediction
+result = predict_single_patient(
+    patient_id="Aaron Flatley",
+    model_path="models/heart_failure_model.pt",
+    prediction_date=datetime(1998, 1, 1)
+)
+print(f"Risk in 1998: {result['probability']:.1%}")
 ```
-
-### Important: Interpreting Predictions
-
-The model is designed for **prospective prediction** - identifying patients who will develop the disease in the next 6 months. This has important implications:
-
-| Patient Type | Expected Prediction | Why |
-|--------------|---------------------|-----|
-| **At-risk, no disease** | HIGH (70-99%) | Correct! Model identifies risk factors |
-| **Already has disease** | LOW (1-10%) | Expected! Post-diagnosis treatment looks different |
-| **Low-risk, healthy** | LOW (1-30%) | Correct! No risk factors |
-
-**Example (Heart Failure):**
-```
-# At-risk patient (hypertension, no HF yet) → HIGH RISK
-python predict_patient.py "Abe Brown" --model models/heart_failure_model.pt
-# Heart Failure Risk Probability: 95.0%
-
-# Patient already on HF treatment → LOW RISK
-python predict_patient.py "Aaron Flatley" --model models/heart_failure_model.pt
-# Heart Failure Risk Probability: 1.2%
-```
-
-The low score for existing patients makes sense because:
-1. They're on disease-specific medications the model never saw during training
-2. Training stopped 6 months before diagnosis
-3. Post-diagnosis care patterns differ from pre-diagnosis
-
-**Use case**: Screen at-risk patients (e.g., hypertensive, diabetic) to identify who needs closer monitoring.
 
 ---
 
@@ -296,11 +332,14 @@ with PatientGraphClient() as client:
 # Train a model
 python train_disease.py configs/heart_failure.yaml
 
-# Predict for a patient
-python predict_patient.py "patient-id" models/heart_failure_model.pt
+# Predict for a patient (checks if diagnosed, then runs model)
+python predict_patient.py "patient-id" --model models/heart_failure_model.pt
 
-# Analyze attention weights
-python analyze_attention.py models/heart_failure_model.pt
+# Point-in-time prediction (what was the risk on a specific date?)
+python predict_patient.py "patient-id" --model models/heart_failure_model.pt --date 2018-01-01
+
+# Quick prediction without attention analysis
+python predict_patient.py "patient-id" --model models/heart_failure_model.pt --no-attention
 ```
 
 ## Troubleshooting
