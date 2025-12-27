@@ -203,6 +203,34 @@ model.eval()
 # ... (see predict_patient.py for full example)
 ```
 
+### Important: Interpreting Predictions
+
+The model is designed for **prospective prediction** - identifying patients who will develop the disease in the next 6 months. This has important implications:
+
+| Patient Type | Expected Prediction | Why |
+|--------------|---------------------|-----|
+| **At-risk, no disease** | HIGH (70-99%) | Correct! Model identifies risk factors |
+| **Already has disease** | LOW (1-10%) | Expected! Post-diagnosis treatment looks different |
+| **Low-risk, healthy** | LOW (1-30%) | Correct! No risk factors |
+
+**Example (Heart Failure):**
+```
+# At-risk patient (hypertension, no HF yet) → HIGH RISK
+python predict_patient.py "Abe Brown" --model models/heart_failure_model.pt
+# Heart Failure Risk Probability: 95.0%
+
+# Patient already on HF treatment → LOW RISK
+python predict_patient.py "Aaron Flatley" --model models/heart_failure_model.pt
+# Heart Failure Risk Probability: 1.2%
+```
+
+The low score for existing patients makes sense because:
+1. They're on disease-specific medications the model never saw during training
+2. Training stopped 6 months before diagnosis
+3. Post-diagnosis care patterns differ from pre-diagnosis
+
+**Use case**: Screen at-risk patients (e.g., hypertensive, diabetic) to identify who needs closer monitoring.
+
 ---
 
 ## 4. Understanding Results
