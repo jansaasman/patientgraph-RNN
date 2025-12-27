@@ -1,0 +1,22 @@
+# Diabetic Nephropathy Prediction
+# Predicts kidney disease in diabetic/prediabetic patients
+
+name: nephropathy
+display_name: Kidney Disease
+
+case_condition_filters:
+  - kidney disease
+  - chronic kidney
+  - renal failure
+  - nephropathy
+
+control_risk_filters:
+  - diabetes
+  - prediabetes
+  - diabetic
+
+# Optional hyperparameter overrides
+# Defaults will auto-tune based on dataset size
+# control_ratio: 2
+# prediction_gap_days: 182
+# lookback_years: 5

@@ -1,0 +1,21 @@
+# Atrial Fibrillation Prediction
+# Predicts AF in cardiovascular risk patients
+
+name: atrial_fibrillation
+display_name: Atrial Fibrillation
+
+case_condition_filters:
+  - atrial fibrillation
+
+control_risk_filters:
+  - hypertension
+  - obesity
+  - diabetes
+  - hyperlipidemia
+  - coronary
+
+# Optional hyperparameter overrides
+# Note: Small dataset (~86 cases) will auto-tune to smaller model
+# control_ratio: 4
+# prediction_gap_days: 182
+# lookback_years: 5

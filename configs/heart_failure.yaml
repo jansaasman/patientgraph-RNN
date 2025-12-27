@@ -1,0 +1,21 @@
+# Heart Failure Prediction
+# Predicts heart failure in cardiovascular risk patients
+
+name: heart_failure
+display_name: Heart Failure
+
+case_condition_filters:
+  - heart failure
+  - congestive heart
+
+control_risk_filters:
+  - hypertension
+  - coronary
+  - diabetes
+  - ischemic heart
+  - atrial fibrillation
+
+# Optional hyperparameter overrides
+# control_ratio: 3
+# prediction_gap_days: 182
+# lookback_years: 5
